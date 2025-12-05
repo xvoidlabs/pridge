@@ -12,7 +12,7 @@ export default defineConfig({
   appearance: 'dark',
 
   themeConfig: {
-    logo: '/logo.svg',
+    logo: '/logo.png',
     
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
@@ -58,7 +58,7 @@ export default defineConfig({
 
     socialLinks: [
       { icon: 'x', link: 'https://x.com/pridgeio' },
-      { icon: 'github', link: 'https://github.com/xvoidlabs/stealth-bridge' }
+      { icon: 'github', link: 'https://github.com/xvoidlabs/pridge' }
     ],
 
     footer: {
