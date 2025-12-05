@@ -5,6 +5,9 @@ hero:
   name: Pridge
   text: Privacy-First Bridge
   tagline: Private multichain-to-Solana transfers. No tracking. No servers. No compromises.
+  image:
+    src: /logo.png
+    alt: Pridge
   actions:
     - theme: brand
       text: Get Started
