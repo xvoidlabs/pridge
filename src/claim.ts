@@ -28,20 +28,46 @@ function extractHeliusKey(input: string): string {
 
 const HELIUS_KEY = extractHeliusKey(import.meta.env.VITE_HELIUS_API_KEY || '');
 
+// Public RPCs that support browser CORS
+const PUBLIC_MAINNET_RPCS = [
+  'https://rpc.ankr.com/solana',
+  'https://solana-mainnet.g.alchemy.com/v2/demo',
+  'https://api.mainnet-beta.solana.com',
+];
+
+const PUBLIC_DEVNET_RPCS = [
+  'https://rpc.ankr.com/solana_devnet',
+  'https://api.devnet.solana.com',
+];
+
 const MAINNET_RPCS = HELIUS_KEY 
-  ? [`https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`, 'https://api.mainnet-beta.solana.com']
-  : ['https://api.mainnet-beta.solana.com'];
+  ? [`https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`, ...PUBLIC_MAINNET_RPCS]
+  : PUBLIC_MAINNET_RPCS;
 
 const DEVNET_RPCS = HELIUS_KEY
-  ? [`https://devnet.helius-rpc.com/?api-key=${HELIUS_KEY}`, 'https://api.devnet.solana.com']
-  : ['https://api.devnet.solana.com'];
+  ? [`https://devnet.helius-rpc.com/?api-key=${HELIUS_KEY}`, ...PUBLIC_DEVNET_RPCS]
+  : PUBLIC_DEVNET_RPCS;
 
 let useMainnet = !window.location.search.includes('devnet'); // Add ?devnet to URL for testing
 let rpcIndex = 0;
+let lastRpcSwitch = 0;
 
 function getConnection(): Connection {
   const rpcs = useMainnet ? MAINNET_RPCS : DEVNET_RPCS;
-  return new Connection(rpcs[rpcIndex % rpcs.length], 'confirmed');
+  const rpc = rpcs[rpcIndex % rpcs.length];
+  console.debug('Using RPC:', rpc);
+  return new Connection(rpc, 'confirmed');
+}
+
+// Switch to next RPC on error (with cooldown to prevent rapid switching)
+export function rotateRpc(): void {
+  const now = Date.now();
+  if (now - lastRpcSwitch > 2000) { // 2 second cooldown
+    rpcIndex++;
+    lastRpcSwitch = now;
+    const rpcs = useMainnet ? MAINNET_RPCS : DEVNET_RPCS;
+    console.log('Switched to RPC:', rpcs[rpcIndex % rpcs.length]);
+  }
 }
 
 export function setNetwork(mainnet: boolean) {
@@ -66,29 +92,43 @@ export interface Balances {
 }
 
 export async function getBalances(address: PublicKey): Promise<Balances> {
-  const conn = getConnection();
-  
-  const [solBalance, tokenAccounts] = await Promise.all([
-    conn.getBalance(address),
-    conn.getParsedTokenAccountsByOwner(address, { programId: TOKEN_PROGRAM_ID }),
-  ]);
+  const rpcs = useMainnet ? MAINNET_RPCS : DEVNET_RPCS;
+  let lastError: Error | null = null;
 
-  const tokens: TokenBalance[] = tokenAccounts.value
-    .map(({ account }) => {
-      const info = account.data.parsed.info;
+  // Try each RPC until one works
+  for (let i = 0; i < rpcs.length; i++) {
+    const conn = getConnection();
+    
+    try {
+      const [solBalance, tokenAccounts] = await Promise.all([
+        conn.getBalance(address),
+        conn.getParsedTokenAccountsByOwner(address, { programId: TOKEN_PROGRAM_ID }),
+      ]);
+
+      const tokens: TokenBalance[] = tokenAccounts.value
+        .map(({ account }) => {
+          const info = account.data.parsed.info;
+          return {
+            mint: info.mint,
+            amount: info.tokenAmount.amount,
+            decimals: info.tokenAmount.decimals,
+            uiAmount: info.tokenAmount.uiAmount ?? 0,
+          };
+        })
+        .filter((t) => t.uiAmount > 0);
+
       return {
-        mint: info.mint,
-        amount: info.tokenAmount.amount,
-        decimals: info.tokenAmount.decimals,
-        uiAmount: info.tokenAmount.uiAmount ?? 0,
+        sol: solBalance / LAMPORTS_PER_SOL,
+        tokens,
       };
-    })
-    .filter((t) => t.uiAmount > 0);
+    } catch (e) {
+      lastError = e as Error;
+      console.warn('RPC failed, trying next:', e);
+      rotateRpc();
+    }
+  }
 
-  return {
-    sol: solBalance / LAMPORTS_PER_SOL,
-    tokens,
-  };
+  throw lastError || new Error('All RPCs failed');
 }
 
 export interface ClaimOptions {
