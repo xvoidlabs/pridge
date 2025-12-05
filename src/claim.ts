@@ -15,7 +15,18 @@ import {
 } from '@solana/spl-token';
 
 // RPC Configuration - uses environment variables or fallback to public RPCs
-const HELIUS_KEY = import.meta.env.VITE_HELIUS_API_KEY || '';
+// Extract API key if full URL is provided
+function extractHeliusKey(input: string): string {
+  if (!input) return '';
+  // If it's a full URL, extract the api-key parameter
+  if (input.includes('helius-rpc.com')) {
+    const match = input.match(/api-key=([a-f0-9-]+)/i);
+    return match ? match[1] : '';
+  }
+  return input;
+}
+
+const HELIUS_KEY = extractHeliusKey(import.meta.env.VITE_HELIUS_API_KEY || '');
 
 const MAINNET_RPCS = HELIUS_KEY 
   ? [`https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`, 'https://api.mainnet-beta.solana.com']
