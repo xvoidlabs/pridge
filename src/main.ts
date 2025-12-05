@@ -50,11 +50,11 @@ function renderHome() {
   const app = $('#app')!;
   app.innerHTML = `
     <div class="card">
-      <h1>Stealth Bridge ${getNetworkBadge()}</h1>
+      <h1>Pridge ${getNetworkBadge()}</h1>
       <p class="subtitle">Private multichain to Solana transfers</p>
       
       <div class="section">
-        <button id="btn-create" class="btn-primary">Create Stealth Deposit</button>
+        <button id="btn-create" class="btn-primary">Create Private Deposit</button>
       </div>
       
       <div class="info-box">
@@ -84,7 +84,7 @@ function renderDeposit() {
   const app = $('#app')!;
   app.innerHTML = `
     <div class="card">
-      <h1>Stealth Bridge ${getNetworkBadge()}</h1>
+      <h1>Pridge ${getNetworkBadge()}</h1>
       
       <div class="warning-box">
         <p class="warning-title">Save your claim link first!</p>

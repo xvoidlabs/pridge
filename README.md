@@ -1,10 +1,10 @@
-# Stealth Bridge
+# Pridge
 
-A privacy-preserving multichain-to-Solana bridge. 100% client-side PWA with no backend, no servers, no tracking.
+Privacy-preserving multichain-to-Solana bridge. 100% client-side PWA with no backend, no servers, no tracking.
 
 ## Overview
 
-Stealth Bridge enables private cross-chain transfers to Solana by breaking the on-chain link between source and destination wallets. Users bridge assets through a disposable intermediate address, then claim to any wallet using a one-time link.
+Pridge enables private cross-chain transfers to Solana by breaking the on-chain link between source and destination wallets. Users bridge assets through a disposable intermediate address, then claim to any wallet using a one-time link.
 
 ### How It Works
 
@@ -56,8 +56,8 @@ Destination: **Solana** (always)
 
 ```bash
 # Clone repository
-git clone https://github.com/xvoidlabs/stealth-bridge.git
-cd stealth-bridge
+git clone https://github.com/xvoidlabs/pridge.git
+cd pridge
 
 # Install dependencies
 npm install
