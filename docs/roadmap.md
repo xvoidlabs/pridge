@@ -24,8 +24,8 @@ Our vision for Pridge: the most private, user-friendly cross-chain bridge to Sol
 - [ ] **Time-Locked Claims** - Set expiration on claim links
 
 ### Phase 3: Token Support
-- [ ] **USDC Bridging** - Stable coin support
-- [ ] **USDT Bridging** - Tether support
+- [x] **USDC Bridging** - Stable coin support
+- [x] **USDT Bridging** - Tether support
 - [ ] **Custom Tokens** - Bridge any supported ERC-20
 
 ---

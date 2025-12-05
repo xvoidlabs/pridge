@@ -44,6 +44,7 @@ interface AppState {
   stopPolling: (() => void) | null;
   evmConnected: boolean;
   selectedChain: number;
+  selectedToken: string;
   quote: debridge.DeBridgeQuote | null;
   solWalletConnected: boolean;
 }
@@ -55,6 +56,7 @@ const state: AppState = {
   stopPolling: null,
   evmConnected: false,
   selectedChain: 42161,
+  selectedToken: 'NATIVE',
   quote: null,
   solWalletConnected: false,
 };
@@ -152,8 +154,20 @@ function renderDeposit() {
             </div>
             
             <div class="form-row">
-              <label>Amount (Native Token)</label>
-              <input type="number" id="amount-input" placeholder="0.01" step="any" value="0.005" />
+              <label>Token</label>
+              <select id="token-select">
+                ${Object.entries(debridge.SUPPORTED_TOKENS)
+                  .filter(([, t]) => debridge.isTokenSupported(t.symbol === 'NATIVE' ? 'NATIVE' : t.symbol, state.selectedChain))
+                  .map(([key, t]) => {
+                    const label = key === 'NATIVE' ? debridge.getNativeTokenName(state.selectedChain) : t.symbol;
+                    return `<option value="${key}" ${state.selectedToken === key ? 'selected' : ''}>${label}</option>`;
+                  }).join('')}
+              </select>
+            </div>
+            
+            <div class="form-row">
+              <label>Amount <span id="token-balance-hint" class="balance-hint"></span></label>
+              <input type="number" id="amount-input" placeholder="0.01" step="any" value="${state.selectedToken === 'NATIVE' ? '0.005' : '10'}" />
             </div>
             
             <button id="btn-get-quote" class="btn-primary">Get Quote</button>
@@ -256,13 +270,37 @@ function renderDeposit() {
     state.quote = null;
     hide($('#quote-result'));
     
+    // Check if current token is supported on new chain
+    if (!debridge.isTokenSupported(state.selectedToken, chainId)) {
+      state.selectedToken = 'NATIVE';
+    }
+    
     // Switch chain in MetaMask
     try {
       await evmWallet.switchChain(chainId);
+      renderDeposit(); // Re-render to update token options
     } catch (err) {
       showToast('Failed to switch chain');
     }
   });
+
+  // Token selector
+  $('#token-select')?.addEventListener('change', async (e) => {
+    const tokenSymbol = (e.target as HTMLSelectElement).value;
+    state.selectedToken = tokenSymbol;
+    state.quote = null;
+    hide($('#quote-result'));
+    
+    // Update amount placeholder based on token
+    const amountInput = $('#amount-input') as HTMLInputElement;
+    amountInput.value = tokenSymbol === 'NATIVE' ? '0.005' : '10';
+    
+    // Load token balance
+    updateTokenBalance();
+  });
+
+  // Load initial token balance
+  updateTokenBalance();
 
   // Get quote button
   $('#btn-get-quote')?.addEventListener('click', async () => {
@@ -278,19 +316,31 @@ function renderDeposit() {
     btn.textContent = 'Getting quote...';
 
     try {
-      const decimals = 18;
+      const tokenInfo = debridge.SUPPORTED_TOKENS[state.selectedToken];
+      if (!tokenInfo) throw new Error('Invalid token');
+
+      const srcTokenAddress = debridge.getTokenAddress(state.selectedToken, state.selectedChain);
+      if (!srcTokenAddress) throw new Error('Token not supported on this chain');
+
+      const decimals = tokenInfo.decimals;
       const amountWei = BigInt(Math.floor(amount * 10 ** decimals)).toString();
 
-      console.log('Getting quote:', { chain: state.selectedChain, amount: amountWei, dest: address });
+      console.log('Getting quote:', { 
+        chain: state.selectedChain, 
+        token: state.selectedToken,
+        amount: amountWei, 
+        dest: address 
+      });
 
       const quote = await debridge.getQuote({
         srcChainId: state.selectedChain,
-        srcTokenAddress: debridge.NATIVE_TOKEN,
+        srcTokenAddress: srcTokenAddress,
         amount: amountWei,
         dstChainId: debridge.SOLANA_CHAIN_ID,
-        dstTokenAddress: debridge.SOLANA_NATIVE_SOL,
+        dstTokenAddress: tokenInfo.solanaAddress,
         dstAddress: address,
         srcAddress: wallet?.address || '',
+        tokenSymbol: state.selectedToken,
       });
 
       if (!quote) {
@@ -299,9 +349,11 @@ function renderDeposit() {
 
       state.quote = quote;
 
-      // Display quote
-      const receiveAmount = parseFloat(quote.estimation.dstChainTokenOut.amount) / 1e9;
-      $('#quote-receive')!.textContent = `~${receiveAmount.toFixed(6)} SOL`;
+      // Display quote - use correct decimals for destination token
+      const dstDecimals = state.selectedToken === 'NATIVE' ? 9 : 6; // SOL = 9, USDC/USDT = 6
+      const receiveAmount = parseFloat(quote.estimation.dstChainTokenOut.amount) / Math.pow(10, dstDecimals);
+      const receiveSymbol = state.selectedToken === 'NATIVE' ? 'SOL' : state.selectedToken;
+      $('#quote-receive')!.textContent = `~${receiveAmount.toFixed(6)} ${receiveSymbol}`;
       
       const fixFee = parseFloat(quote.fixFee || '0');
       const percentFee = parseFloat(quote.percentFee || '0');
@@ -331,18 +383,47 @@ function renderDeposit() {
     btn.disabled = true;
     hide($('#quote-result'));
     show($('#bridge-status'));
-    $('#bridge-status-text')!.textContent = 'Creating transaction...';
 
     try {
+      const tokenInfo = debridge.SUPPORTED_TOKENS[state.selectedToken];
+      if (!tokenInfo) throw new Error('Invalid token');
+
+      const srcTokenAddress = debridge.getTokenAddress(state.selectedToken, state.selectedChain);
+      if (!srcTokenAddress) throw new Error('Token not supported');
+
+      // Check if token approval is needed (for ERC-20 tokens)
+      if (state.selectedToken !== 'NATIVE') {
+        $('#bridge-status-text')!.textContent = 'Checking approval...';
+        
+        const hasAllowance = await debridge.checkAllowance(
+          wallet,
+          srcTokenAddress,
+          state.quote.estimation.srcChainTokenIn.amount
+        );
+
+        if (!hasAllowance) {
+          $('#bridge-status-text')!.textContent = 'Approve token in MetaMask...';
+          
+          // Request unlimited approval
+          const maxApproval = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+          await debridge.approveToken(wallet, srcTokenAddress, maxApproval);
+          
+          showToast('Token approved!');
+        }
+      }
+
+      $('#bridge-status-text')!.textContent = 'Creating transaction...';
+
       // Create the transaction
       const txQuote = await debridge.createTransaction({
         srcChainId: state.selectedChain,
-        srcTokenAddress: debridge.NATIVE_TOKEN,
+        srcTokenAddress: srcTokenAddress,
         amount: state.quote.estimation.srcChainTokenIn.amount,
         dstChainId: debridge.SOLANA_CHAIN_ID,
-        dstTokenAddress: debridge.SOLANA_NATIVE_SOL,
+        dstTokenAddress: tokenInfo.solanaAddress,
         dstAddress: state.disposable.publicKey.toBase58(),
         srcAddress: wallet.address,
+        tokenSymbol: state.selectedToken,
       });
 
       if (!txQuote) {
@@ -420,6 +501,36 @@ function updateBalanceDisplay() {
     for (const token of balances.tokens) {
       list.innerHTML += `<div class="balance-item"><span>${formatAddress(token.mint)}</span><span>${token.uiAmount.toFixed(token.decimals > 6 ? 6 : token.decimals)}</span></div>`;
     }
+  }
+}
+
+async function updateTokenBalance() {
+  const wallet = evmWallet.getCurrentWallet();
+  if (!wallet) return;
+
+  const tokenInfo = debridge.SUPPORTED_TOKENS[state.selectedToken];
+  if (!tokenInfo) return;
+
+  const hint = $('#token-balance-hint');
+  if (!hint) return;
+
+  try {
+    hint.textContent = '(loading...)';
+    const tokenAddress = debridge.getTokenAddress(state.selectedToken, wallet.chainId);
+    if (!tokenAddress) {
+      hint.textContent = '';
+      return;
+    }
+
+    const balance = await debridge.getTokenBalance(wallet, tokenAddress);
+    const formatted = parseFloat(balance) / Math.pow(10, tokenInfo.decimals);
+    const symbol = state.selectedToken === 'NATIVE' 
+      ? debridge.getNativeTokenName(wallet.chainId) 
+      : tokenInfo.symbol;
+    hint.textContent = `(Balance: ${formatted.toFixed(4)} ${symbol})`;
+  } catch (e) {
+    console.error('Failed to get balance:', e);
+    hint.textContent = '';
   }
 }
 

@@ -745,6 +745,14 @@ h1 {
   font-family: 'JetBrains Mono', monospace;
 }
 
+.form-row label .balance-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 400;
+  text-transform: none;
+  margin-left: 4px;
+}
+
 .btn-large {
   padding: 18px 24px;
   font-size: 16px;
