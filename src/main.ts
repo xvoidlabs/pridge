@@ -76,7 +76,7 @@ function renderHome() {
   app.innerHTML = `
     <div class="card">
       <div class="logo-header">
-        <img src="/logo-minimal.svg" alt="Pridge" class="logo" />
+        <img src="/logo.png" alt="Pridge" class="logo" />
         <h1>Pridge ${getNetworkBadge()}</h1>
       </div>
       <p class="subtitle">Private multichain to Solana transfers</p>
@@ -114,7 +114,7 @@ function renderDeposit() {
   app.innerHTML = `
     <div class="card">
       <div class="logo-header">
-        <img src="/logo-minimal.svg" alt="Pridge" class="logo" />
+        <img src="/logo.png" alt="Pridge" class="logo" />
         <h1>Pridge ${getNetworkBadge()}</h1>
       </div>
       
