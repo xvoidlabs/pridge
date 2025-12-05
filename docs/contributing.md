@@ -36,7 +36,7 @@ npm run dev
 ## Project Structure
 
 ```
-stealth-bridge/
+pridge/
 ├── src/
 │   ├── main.ts          # App entry, routing
 │   ├── keypair.ts       # Key generation

@@ -92,7 +92,7 @@ Pridge has not been formally audited. Use at your own risk.
 :::
 
 The codebase is open source for community review:
-- [GitHub Repository](https://github.com/xvoidlabs/stealth-bridge)
+- [GitHub Repository](https://github.com/xvoidlabs/pridge)
 
 ## Responsible Disclosure
 
@@ -118,7 +118,7 @@ Pridge relies on:
 All code is MIT licensed and available for inspection:
 
 ```bash
-git clone https://github.com/xvoidlabs/stealth-bridge
+git clone https://github.com/xvoidlabs/pridge
 ```
 
 We encourage security researchers to review and report findings.

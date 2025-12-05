@@ -1,0 +1,86 @@
+/* Pridge Blue Theme */
+:root {
+  --vp-c-brand-1: #3b9eff;
+  --vp-c-brand-2: #5cb3ff;
+  --vp-c-brand-3: #7dd3fc;
+  --vp-c-brand-soft: rgba(59, 158, 255, 0.14);
+  
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #7dd3fc 0%, #3b9eff 50%, #1e5a9e 100%);
+  
+  --vp-home-hero-image-background-image: linear-gradient(135deg, #3b9eff30 0%, #1e5a9e30 100%);
+  --vp-home-hero-image-filter: blur(40px);
+}
+
+.dark {
+  --vp-c-bg: #0a1628;
+  --vp-c-bg-soft: #0f1d32;
+  --vp-c-bg-mute: #152238;
+  --vp-c-bg-alt: #0f1d32;
+  
+  --vp-c-border: #1e3a5f;
+  --vp-c-divider: #1e3a5f;
+  --vp-c-gutter: #0a1628;
+  
+  --vp-c-text-1: #e8f4fc;
+  --vp-c-text-2: #a8c8e0;
+  --vp-c-text-3: #7ba3c4;
+  
+  --vp-button-brand-bg: linear-gradient(135deg, #7dd3fc 0%, #3b9eff 50%, #1e5a9e 100%);
+  --vp-button-brand-hover-bg: linear-gradient(135deg, #93dcfd 0%, #5cb3ff 50%, #2d6cb5 100%);
+}
+
+/* Hero section */
+.VPHero .name {
+  font-weight: 700;
+}
+
+.VPHero .tagline {
+  color: var(--vp-c-text-2);
+}
+
+/* Feature cards */
+.VPFeature {
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-border);
+}
+
+.VPFeature:hover {
+  border-color: var(--vp-c-brand-1);
+}
+
+/* Sidebar */
+.VPSidebar {
+  background: var(--vp-c-bg);
+}
+
+/* Navigation */
+.VPNavBar {
+  background: var(--vp-c-bg);
+  border-bottom: 1px solid var(--vp-c-border);
+}
+
+/* Code blocks */
+.vp-code-group .tabs label {
+  background: var(--vp-c-bg-soft);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--vp-c-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vp-c-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vp-c-brand-1);
+}
+

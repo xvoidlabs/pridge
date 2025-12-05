@@ -6,8 +6,10 @@ export default defineConfig({
   
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
-    ['meta', { name: 'theme-color', content: '#00d9ff' }],
+    ['meta', { name: 'theme-color', content: '#3b9eff' }],
   ],
+  
+  appearance: 'dark',
 
   themeConfig: {
     logo: '/logo.svg',

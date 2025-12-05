@@ -65,7 +65,7 @@ Our vision for Pridge: the most private, user-friendly cross-chain bridge to Sol
 Have ideas? We'd love to hear them:
 
 - [Twitter/X](https://x.com/pridgeio)
-- [GitHub Issues](https://github.com/xvoidlabs/stealth-bridge/issues)
+- [GitHub Issues](https://github.com/xvoidlabs/pridge/issues)
 
 Pridge is open source. Contributions welcome.
 

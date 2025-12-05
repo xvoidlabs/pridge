@@ -21,7 +21,7 @@ Pridge itself charges no fees. You pay:
 
 ### Is Pridge open source?
 
-Yes, fully MIT licensed: [GitHub](https://github.com/xvoidlabs/stealth-bridge)
+Yes, fully MIT licensed: [GitHub](https://github.com/xvoidlabs/pridge)
 
 ---
 
