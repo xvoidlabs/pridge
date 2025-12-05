@@ -292,27 +292,16 @@ const ERC20_ABI = {
   balanceOf: 'function balanceOf(address account) view returns (uint256)',
 };
 
-// deBridge contract addresses per chain
-const DEBRIDGE_CONTRACTS: Record<number, string> = {
-  1: '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251',      // Ethereum
-  56: '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251',     // BSC
-  137: '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251',    // Polygon
-  42161: '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251',  // Arbitrum
-  8453: '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251',   // Base
-  43114: '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251',  // Avalanche
-  10: '0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251',     // Optimism
-};
-
-// Check if token needs approval
+// Check if token needs approval (spender comes from deBridge quote.tx.to)
 export async function checkAllowance(
   wallet: EVMWallet,
   tokenAddress: string,
+  spender: string,
   amount: string
 ): Promise<boolean> {
   if (tokenAddress === NATIVE_TOKEN) return true; // Native tokens don't need approval
-  
-  const spender = DEBRIDGE_CONTRACTS[wallet.chainId];
-  if (!spender) return false;
+
+  console.log('Checking allowance:', { tokenAddress, spender, amount, owner: wallet.address });
 
   try {
     const { ethers } = await import('ethers');
@@ -323,21 +312,23 @@ export async function checkAllowance(
     );
     
     const allowance = await contract.allowance(wallet.address, spender);
-    return BigInt(allowance.toString()) >= BigInt(amount);
+    const hasEnough = BigInt(allowance.toString()) >= BigInt(amount);
+    console.log('Current allowance:', allowance.toString(), 'Needs:', amount, 'Has enough:', hasEnough);
+    return hasEnough;
   } catch (e) {
     console.error('Failed to check allowance:', e);
     return false;
   }
 }
 
-// Approve token spending
+// Approve token spending (spender comes from deBridge quote.tx.to)
 export async function approveToken(
   wallet: EVMWallet,
   tokenAddress: string,
+  spender: string,
   amount: string
 ): Promise<string> {
-  const spender = DEBRIDGE_CONTRACTS[wallet.chainId];
-  if (!spender) throw new Error('Chain not supported');
+  console.log('Approving token:', { tokenAddress, spender, amount });
 
   try {
     const { ethers } = await import('ethers');
@@ -364,6 +355,7 @@ export async function approveToken(
       throw new Error('Approval transaction failed');
     }
 
+    console.log('Approval confirmed!');
     return txHash;
   } catch (e: unknown) {
     console.error('Approval error:', e);

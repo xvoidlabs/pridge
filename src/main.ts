@@ -391,30 +391,9 @@ function renderDeposit() {
       const srcTokenAddress = debridge.getTokenAddress(state.selectedToken, state.selectedChain);
       if (!srcTokenAddress) throw new Error('Token not supported');
 
-      // Check if token approval is needed (for ERC-20 tokens)
-      if (state.selectedToken !== 'NATIVE') {
-        $('#bridge-status-text')!.textContent = 'Checking approval...';
-        
-        const hasAllowance = await debridge.checkAllowance(
-          wallet,
-          srcTokenAddress,
-          state.quote.estimation.srcChainTokenIn.amount
-        );
-
-        if (!hasAllowance) {
-          $('#bridge-status-text')!.textContent = 'Approve token in MetaMask...';
-          
-          // Request unlimited approval
-          const maxApproval = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
-          await debridge.approveToken(wallet, srcTokenAddress, maxApproval);
-          
-          showToast('Token approved!');
-        }
-      }
-
       $('#bridge-status-text')!.textContent = 'Creating transaction...';
 
-      // Create the transaction
+      // Create the transaction FIRST to get the spender address (tx.to)
       const txQuote = await debridge.createTransaction({
         srcChainId: state.selectedChain,
         srcTokenAddress: srcTokenAddress,
@@ -428,6 +407,30 @@ function renderDeposit() {
 
       if (!txQuote) {
         throw new Error('Failed to create transaction');
+      }
+
+      // Check if token approval is needed (for ERC-20 tokens)
+      // Use tx.to from the quote as the spender address
+      if (state.selectedToken !== 'NATIVE') {
+        $('#bridge-status-text')!.textContent = 'Checking approval...';
+        
+        const spender = txQuote.tx.to; // The deBridge contract address
+        const hasAllowance = await debridge.checkAllowance(
+          wallet,
+          srcTokenAddress,
+          spender,
+          state.quote.estimation.srcChainTokenIn.amount
+        );
+
+        if (!hasAllowance) {
+          $('#bridge-status-text')!.textContent = 'Approve token in MetaMask...';
+          
+          // Request unlimited approval
+          const maxApproval = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+          await debridge.approveToken(wallet, srcTokenAddress, spender, maxApproval);
+          
+          showToast('Token approved!');
+        }
       }
 
       $('#bridge-status-text')!.textContent = 'Confirm in MetaMask...';
