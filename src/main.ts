@@ -4,6 +4,7 @@ import * as claim from './claim';
 import * as evmWallet from './evm-wallet';
 import * as solWallet from './solana-wallet';
 import * as debridge from './debridge';
+import * as stealth from './stealth';
 import { $, show, hide, copyToClipboard, showToast, formatAddress } from './ui';
 
 function getNetworkBadge(): string {
@@ -43,7 +44,7 @@ interface SplitDest {
 }
 
 interface AppState {
-  mode: 'home' | 'deposit' | 'claim';
+  mode: 'home' | 'deposit' | 'claim' | 'stealth';
   disposable: Keypair | null;
   balances: claim.Balances | null;
   stopPolling: (() => void) | null;
@@ -55,6 +56,8 @@ interface AppState {
   expiresAt: number | null; // Unix timestamp for claim expiration
   splitMode: boolean;
   splitDestinations: SplitDest[];
+  stealthWallet: stealth.StealthWallet | null;
+  stealthPayments: Array<{ address: string; ephemeralKey: string; amount: number }>;
 }
 
 const state: AppState = {
@@ -70,6 +73,8 @@ const state: AppState = {
   expiresAt: null,
   splitMode: false,
   splitDestinations: [{ address: '', percentage: 100 }],
+  stealthWallet: null,
+  stealthPayments: [],
 };
 
 function detectMode(): 'home' | 'claim' {
@@ -97,6 +102,7 @@ function renderHome() {
       
       <div class="section">
         <button id="btn-create" class="btn-primary">Create Private Deposit</button>
+        <button id="btn-stealth" class="btn-secondary" disabled title="Coming Soon">Stealth Address (Coming Soon)</button>
       </div>
       
       <div class="info-box">
@@ -114,6 +120,12 @@ function renderHome() {
     state.mode = 'deposit';
     renderDeposit();
   });
+
+  // Stealth addresses - Coming Soon (disabled for now)
+  // $('#btn-stealth')!.addEventListener('click', () => {
+  //   state.mode = 'stealth';
+  //   renderStealth();
+  // });
 }
 
 // Expiration options in seconds
@@ -991,6 +1003,301 @@ async function loadClaimBalances() {
     hide($('#loading-balances'));
     show($('#empty-notice'));
     console.error('Failed to load balances:', e);
+  }
+}
+
+// Stealth Address Functions
+const STEALTH_WALLET_KEY = 'pridge_stealth_wallet';
+
+function loadStealthWallet(): stealth.StealthWallet | null {
+  const saved = localStorage.getItem(STEALTH_WALLET_KEY);
+  if (saved) {
+    return stealth.importStealthWallet(saved);
+  }
+  return null;
+}
+
+function saveStealthWallet(wallet: stealth.StealthWallet) {
+  localStorage.setItem(STEALTH_WALLET_KEY, stealth.exportStealthWallet(wallet));
+}
+
+function renderStealth() {
+  // Load existing wallet or show create option
+  if (!state.stealthWallet) {
+    state.stealthWallet = loadStealthWallet();
+  }
+
+  const app = $('#app')!;
+  
+  if (!state.stealthWallet) {
+    // No wallet - show create UI
+    app.innerHTML = `
+      <div class="card">
+        <div class="logo-header">
+          <img src="/logo.png" alt="Pridge" class="logo" />
+          <h1>Stealth Address ${getNetworkBadge()}</h1>
+        </div>
+        
+        <div class="info-box stealth-info">
+          <h3>What is a Stealth Address?</h3>
+          <p>A stealth address lets you receive payments without revealing your identity.</p>
+          <ul>
+            <li>Share ONE address publicly</li>
+            <li>Each payment goes to a unique, unlinkable address</li>
+            <li>Only you can detect and claim payments</li>
+            <li>No need to generate new claim links</li>
+          </ul>
+        </div>
+
+        <div class="section">
+          <button id="btn-create-stealth" class="btn-primary">Create Stealth Wallet</button>
+        </div>
+
+        <div class="section">
+          <button id="btn-import-stealth" class="btn-secondary">Import Existing Wallet</button>
+        </div>
+
+        <button id="btn-back" class="btn-back">Back</button>
+      </div>
+      ${getFooter()}
+    `;
+
+    $('#btn-create-stealth')!.addEventListener('click', () => {
+      state.stealthWallet = stealth.generateStealthWallet();
+      saveStealthWallet(state.stealthWallet);
+      showToast('Stealth wallet created!');
+      renderStealth();
+    });
+
+    $('#btn-import-stealth')!.addEventListener('click', () => {
+      const encoded = prompt('Paste your exported stealth wallet:');
+      if (encoded) {
+        const wallet = stealth.importStealthWallet(encoded);
+        if (wallet) {
+          state.stealthWallet = wallet;
+          saveStealthWallet(wallet);
+          showToast('Stealth wallet imported!');
+          renderStealth();
+        } else {
+          showToast('Invalid wallet data');
+        }
+      }
+    });
+
+    $('#btn-back')!.addEventListener('click', () => {
+      state.mode = 'home';
+      renderHome();
+    });
+
+  } else {
+    // Has wallet - show main stealth UI
+    const wallet = state.stealthWallet;
+    
+    app.innerHTML = `
+      <div class="card">
+        <div class="logo-header">
+          <img src="/logo.png" alt="Pridge" class="logo" />
+          <h1>Stealth Address ${getNetworkBadge()}</h1>
+        </div>
+
+        <div class="stealth-section">
+          <h3>Your Stealth Meta-Address</h3>
+          <p class="hint">Share this address to receive private payments</p>
+          <div class="address-box">
+            <input type="text" id="meta-address" readonly value="${wallet.metaAddress}" />
+            <button id="btn-copy-meta" class="btn-small">Copy</button>
+          </div>
+        </div>
+
+        <div class="stealth-tabs">
+          <button id="tab-receive" class="tab-btn active">Receive</button>
+          <button id="tab-send" class="tab-btn">Send</button>
+          <button id="tab-scan" class="tab-btn">Scan</button>
+        </div>
+
+        <div id="receive-panel" class="stealth-panel">
+          <p>Share your stealth meta-address above. Senders will derive a unique one-time address for each payment.</p>
+          <div class="info-box">
+            <p>To receive: Give your meta-address to the sender</p>
+            <p>They will use it to derive a unique address</p>
+            <p>Use the "Scan" tab to detect incoming payments</p>
+          </div>
+        </div>
+
+        <div id="send-panel" class="stealth-panel" style="display: none;">
+          <h3>Send to Stealth Address</h3>
+          <div class="input-group">
+            <label>Recipient's Stealth Meta-Address:</label>
+            <input type="text" id="recipient-meta" placeholder="st1..." />
+          </div>
+          <button id="btn-derive" class="btn-primary">Derive One-Time Address</button>
+          <div id="derived-address" class="derived-result" style="display: none;">
+            <p>Send funds to this one-time address:</p>
+            <div class="address-box">
+              <input type="text" id="one-time-address" readonly />
+              <button id="btn-copy-onetime" class="btn-small">Copy</button>
+            </div>
+            <p class="hint">Ephemeral key (share with recipient or publish):</p>
+            <div class="address-box">
+              <input type="text" id="ephemeral-key" readonly />
+              <button id="btn-copy-ephemeral" class="btn-small">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="scan-panel" class="stealth-panel" style="display: none;">
+          <h3>Scan for Payments</h3>
+          <p>Enter an ephemeral key to check if a payment is yours:</p>
+          <div class="input-group">
+            <label>Ephemeral Public Key:</label>
+            <input type="text" id="scan-ephemeral" placeholder="Base58 encoded..." />
+          </div>
+          <div class="input-group">
+            <label>Payment Address:</label>
+            <input type="text" id="scan-address" placeholder="Solana address..." />
+          </div>
+          <button id="btn-scan" class="btn-primary">Check Payment</button>
+          <div id="scan-result" style="display: none;"></div>
+        </div>
+
+        <div class="stealth-actions">
+          <button id="btn-export" class="btn-secondary">Export Wallet</button>
+          <button id="btn-delete" class="btn-danger">Delete Wallet</button>
+        </div>
+
+        <button id="btn-back" class="btn-back">Back</button>
+      </div>
+      ${getFooter()}
+    `;
+
+    // Tab switching
+    const tabs = ['receive', 'send', 'scan'];
+    tabs.forEach(tab => {
+      $(`#tab-${tab}`)!.addEventListener('click', () => {
+        tabs.forEach(t => {
+          $(`#tab-${t}`)!.classList.remove('active');
+          ($(`#${t}-panel`) as HTMLElement).style.display = 'none';
+        });
+        $(`#tab-${tab}`)!.classList.add('active');
+        ($(`#${tab}-panel`) as HTMLElement).style.display = 'block';
+      });
+    });
+
+    // Copy meta-address
+    $('#btn-copy-meta')!.addEventListener('click', () => {
+      copyToClipboard(wallet.metaAddress);
+      showToast('Meta-address copied!');
+    });
+
+    // Derive one-time address
+    $('#btn-derive')!.addEventListener('click', async () => {
+      const recipientMeta = ($('#recipient-meta') as HTMLInputElement).value.trim();
+      if (!recipientMeta) {
+        showToast('Enter a stealth meta-address');
+        return;
+      }
+
+      const payment = await stealth.deriveStealthAddress(recipientMeta);
+      if (!payment) {
+        showToast('Invalid meta-address');
+        return;
+      }
+
+      ($('#one-time-address') as HTMLInputElement).value = payment.oneTimeAddress.toBase58();
+      ($('#ephemeral-key') as HTMLInputElement).value = stealth.encodeEphemeralKey(payment.ephemeralPubKey);
+      show($('#derived-address'));
+    });
+
+    // Copy derived addresses
+    $('#btn-copy-onetime')!.addEventListener('click', () => {
+      const addr = ($('#one-time-address') as HTMLInputElement).value;
+      copyToClipboard(addr);
+      showToast('One-time address copied!');
+    });
+
+    $('#btn-copy-ephemeral')!.addEventListener('click', () => {
+      const key = ($('#ephemeral-key') as HTMLInputElement).value;
+      copyToClipboard(key);
+      showToast('Ephemeral key copied!');
+    });
+
+    // Scan for payment
+    $('#btn-scan')!.addEventListener('click', async () => {
+      const ephemeralKeyStr = ($('#scan-ephemeral') as HTMLInputElement).value.trim();
+      const addressStr = ($('#scan-address') as HTMLInputElement).value.trim();
+
+      if (!ephemeralKeyStr || !addressStr) {
+        showToast('Enter both fields');
+        return;
+      }
+
+      try {
+        const ephemeralKey = stealth.decodeEphemeralKey(ephemeralKeyStr);
+        const paymentAddress = new PublicKey(addressStr);
+        
+        const isOurs = await stealth.checkStealthPayment(wallet, ephemeralKey, paymentAddress);
+        const resultDiv = $('#scan-result')!;
+        
+        if (isOurs) {
+          const derivedKp = await stealth.deriveStealthPrivateKey(wallet, ephemeralKey);
+          if (derivedKp) {
+            const claimFragment = kp.toClaimFragment(derivedKp, null);
+            const claimUrl = `${window.location.origin}${window.location.pathname}#${claimFragment}`;
+            
+            resultDiv.innerHTML = `
+              <div class="success-box">
+                <p>This payment is YOURS!</p>
+                <p>Claim URL:</p>
+                <div class="address-box">
+                  <input type="text" id="claim-url" readonly value="${claimUrl}" />
+                  <button id="btn-copy-claim" class="btn-small">Copy</button>
+                </div>
+                <button id="btn-go-claim" class="btn-primary">Claim Now</button>
+              </div>
+            `;
+            
+            $('#btn-copy-claim')!.addEventListener('click', () => {
+              copyToClipboard(claimUrl);
+              showToast('Claim URL copied!');
+            });
+            
+            $('#btn-go-claim')!.addEventListener('click', () => {
+              window.location.href = claimUrl;
+            });
+          }
+        } else {
+          resultDiv.innerHTML = `<div class="error-box"><p>This payment does NOT belong to your wallet.</p></div>`;
+        }
+        
+        show(resultDiv);
+      } catch (e) {
+        showToast('Invalid input');
+        console.error(e);
+      }
+    });
+
+    // Export wallet
+    $('#btn-export')!.addEventListener('click', () => {
+      const exported = stealth.exportStealthWallet(wallet);
+      copyToClipboard(exported);
+      showToast('Wallet exported to clipboard! Save it securely.');
+    });
+
+    // Delete wallet
+    $('#btn-delete')!.addEventListener('click', () => {
+      if (confirm('Are you sure? This will delete your stealth wallet. Make sure you have exported it!')) {
+        localStorage.removeItem(STEALTH_WALLET_KEY);
+        state.stealthWallet = null;
+        showToast('Wallet deleted');
+        renderStealth();
+      }
+    });
+
+    // Back button
+    $('#btn-back')!.addEventListener('click', () => {
+      state.mode = 'home';
+      renderHome();
+    });
   }
 }
 
